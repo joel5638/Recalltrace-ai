@@ -1,0 +1,23 @@
+digraph G {
+ graph [rankdir=TB, bgcolor="#0b1220", pad="0.35", nodesep="0.42", ranksep="0.65", fontname="DejaVu Sans"];
+ node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=12, color="#29415d", fillcolor="#142238", fontcolor="#eef5ff", margin="0.22,0.16"];
+ edge [color="#74a7e8", arrowsize=0.7, penwidth=1.4];
+ browser [label="Web conversation UI\nChat • evidence • approvals • traces", fillcolor="#17447a"];
+ api [label="FastAPI service\nSession and request endpoints"];
+ guard [label="Request checks\nInput validation • access controls"];
+ workflow [label="LangGraph workflow\nPlan → tools → grounded response", fillcolor="#184d56"];
+ tools [label="Allowlisted investigation tools\nLot exposure • customer shipments\nEvidence search • proposals"];
+ records [label="Seeded supplier records\nLots • shipments • inspections", fillcolor="#2a3448"];
+ history [label="SQLite\nConversation and workflow state", fillcolor="#2a3448"];
+ approval [label="Human approval queue\nReview before any action", fillcolor="#5b3d20"];
+ trace [label="Execution trace\nSteps • status • timings", fillcolor="#2a3448"];
+ model [label="Optional LLM integration\nLocal fallback mode", style="rounded,dashed,filled"];
+ browser -> api -> guard -> workflow;
+ workflow -> tools -> records;
+ workflow -> history;
+ workflow -> approval;
+ workflow -> trace;
+ workflow -> model [style=dashed];
+ approval -> browser [style=dashed, constraint=false];
+ trace -> browser [style=dashed, constraint=false];
+}

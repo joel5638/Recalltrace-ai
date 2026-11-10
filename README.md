@@ -1,43 +1,144 @@
-# RecallTrace AI — Conversational investigation platform
+# RecallTrace AI
 
-Supplier quality investigation with conversational search, evidence grounding, bounded tools, persistent sessions, approval interrupts, observability and optional realtime voice.
+**A conversational investigation workspace for supplier quality and product traceability.**
 
-## Quick start
+RecallTrace helps quality and operations teams investigate a suspect supplier lot, trace affected units to customers and plants, inspect supporting records, and prepare containment proposals for human review. The interface is conversational, but the underlying workflow uses structured tools and traceable business data rather than relying on a model to invent answers.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
+> **Project status:** Local engineering demonstration with synthetic data. Not connected to live supplier, ERP, or customer systems. External communications and operational changes are not executed.
 
-Open http://127.0.0.1:8000. Set `OPENAI_API_KEY` for model-backed chat and realtime voice. Without it, the chat uses deterministic local responses. The supplied dataset is synthetic.
+## Product preview
 
-## Optional production-oriented components
+![RecallTrace AI conversation interface](assets/conversation.png)
 
-```bash
-pip install -r requirements-enterprise.txt
-export RECALLTRACE_VECTOR_BACKEND=qdrant
-export QDRANT_URL=http://localhost:6333
-```
+The workspace brings together the investigation conversation, supporting evidence, customer exposure, approval queue, and execution traces. Users can ask follow-up questions without navigating separate reports.
 
-Start Qdrant separately or with Docker Compose. Then call `POST /api/admin/reindex` to index evidence. For production, set `RECALLTRACE_ENV=production`, `OIDC_ISSUER`, `OIDC_AUDIENCE`, and configure TLS, network isolation, secrets, backups, and deployment-specific authorization. **Do not expose this demo directly to the internet.**
+## Why this exists
+
+A supplier quality issue often starts with a small amount of information: a suspect lot, a failed inspection, or a supplier corrective action. Determining the impact requires joining several sources of information and deciding what to do next.
+
+RecallTrace demonstrates a focused workflow:
+
+1. Investigate a supplier lot and determine the affected inventory.
+2. Trace shipped units and identify customer exposure.
+3. Retrieve inspection reports and supplier corrective action evidence.
+4. Prepare proposed containment steps with a human approval gate.
+5. Review the workflow trace and evidence supporting the response.
 
 ## Architecture
 
-Browser → FastAPI → LangGraph planner → allowlisted investigation tools → hybrid retrieval → evidence-grounded answer. Session context and tool traces persist in SQLite. A separate LangGraph review graph uses SQLite checkpoints and `interrupt()`/`Command(resume=...)` for durable approval. Realtime voice is a bidirectional WebSocket audio relay to a model provider; it does not yet invoke the investigation tools, so voice responses are not evidence-grounded. Qdrant provides a persistent vector index when enabled. Optional cross-encoder reranking is enabled by `RECALLTRACE_RERANKER`.
+![RecallTrace AI conversational architecture for supplier quality investigations](assets/architecture.png)
 
-## API
+### Workflow design
 
-- `POST /api/chat`, `POST /api/chat/stream` for text conversation
-- `GET /api/session/{uuid}`, `GET /api/lot/{lot}` for session and investigation context
-- `POST /api/workflows/review`, `POST /api/workflows/{uuid}/resume` for checkpointed approvals
-- `WS /api/voice/realtime` for realtime audio event relay (PCM16 base64)
-- `POST /api/admin/reindex` for vector indexing
-- `GET /internal/metrics` for Prometheus; optional OTLP spans
-- `GET /api/admin/audit` for trace audit view
-- `python -m app.evaluation` for regression evaluation
+```mermaid
+flowchart TD
+    A[User question] --> B[FastAPI request handling]
+    B --> C[Conversation context]
+    C --> D[LangGraph workflow]
+    D --> E{Select investigation capability}
+    E --> F[Lot and shipment lookup]
+    E --> G[Evidence retrieval]
+    E --> H[Containment proposal]
+    F --> I[Grounded response]
+    G --> I
+    H --> J[Human approval queue]
+    J --> I
+    I --> K[Conversation UI]
+    D --> L[Execution trace]
+```
 
-## Honest limitations
+**Key architectural decisions**
 
-This is an engineering reference implementation, not a security-certified production deployment. The realtime audio protocol depends on provider version and needs integration testing with live credentials. The browser UI uses browser speech recognition for convenient voice input; realtime PCM capture/playback is exposed at the WebSocket API but not wired into the browser UI. OIDC roles depend on the identity provider's token claim conventions. SQLite works for local demos; scale-out should migrate session and checkpoint storage to managed PostgreSQL and apply per-tenant authorization. Realtime voice and text workflows are not unified yet. Prometheus metrics and OTLP traces are available but dashboards and alert policies require an external stack. No outbound supplier actions execute.
+- **Structured tool access:** Investigation functions operate on known business records. Tool access is constrained to an allowlist.
+- **Grounding and traceability:** Retrieved evidence is displayed with source identifiers, allowing users to inspect why a response was generated.
+- **Stateful conversations:** Conversation history is stored locally with SQLite, supporting follow-up questions within a session.
+- **Human oversight:** The system prepares proposals for review instead of silently executing operational changes.
+- **Execution visibility:** Workflow steps expose status and timing information in the interface.
+- **Model flexibility:** An optional LLM can support natural language responses. The demonstration also supports a local response mode without an external model.
+
+## Implemented capabilities
+
+| Area | What the demonstration provides |
+| --- | --- |
+| Conversational interface | Questions and follow-up investigation requests |
+| Orchestration | LangGraph workflow execution |
+| Tool use | Allowlisted investigation functions |
+| Business grounding | Lot, shipment, customer, and inspection records |
+| Evidence | Retrieval with source identifiers |
+| Session history | SQLite-backed persistence |
+| Human approval | Local review of proposed containment actions |
+| Observability | Workflow steps, execution status, and elapsed time |
+| Voice | Browser speech input and read-aloud where supported |
+| API | FastAPI backend |
+
+Some advanced capabilities, such as embedding-based retrieval, may depend on optional configuration. This table describes the local demonstration, not an independently verified production deployment.
+
+## Example investigations
+
+Start with one of the synthetic lots: `LOT-4821`, `LOT-7103`, or `LOT-9902`.
+
+**Trace the exposure**
+
+> Investigate LOT-4821 and summarize the customer exposure.
+
+**Review supporting evidence**
+
+> What does the thermal cycling inspection say about LOT-4821?
+
+**Ask a follow-up**
+
+> Which customers received units from that lot?
+
+**Prepare a controlled response**
+
+> What containment actions should we propose for review?
+
+These examples are intended to demonstrate evidence-backed conversations and human decision points, not automated quality dispositions.
+
+## Technology
+
+**Backend:** Python, FastAPI, Pydantic
+
+**Agent workflow:** LangGraph, LangChain core integrations
+
+**Persistence:** SQLite
+
+**Interface:** Browser-based conversational workspace
+
+**Quality tooling:** pytest, Ruff
+
+**Optional model integration:** Configurable LLM provider, with local demonstration mode
+
+## Run locally
+
+Requirements: Python 3.10+ and a supported modern browser.
+
+```bash
+git clone https://github.com/joel5638/recalltrace-ai.git
+cd recalltrace-ai
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+Open **http://127.0.0.1:8000**.
+
+The application uses synthetic demonstration records. Optional model credentials should be configured locally and never committed to the repository. See the project's configuration files for available environment variables.
+
+## Project boundaries
+
+RecallTrace is a portfolio demonstration, not a production quality management system. The local approval workflow does not update an ERP or notify customers. Authentication, enterprise identity, audit retention, secret management, security testing, infrastructure hardening, and production deployment controls require further work before operational use.
+
+## Future engineering work
+
+- Durable workflow interrupts and resume across process restarts
+- Enterprise identity and role-based authorization
+- Production-grade observability, evaluation, and audit trails
+- Scalable vector retrieval and reranking infrastructure
+- Real-time streaming speech with interruption handling
+- Deployment automation, resilience testing, and governance controls
+
+## Data and safety
+
+All example suppliers, customers, lots, and inspections are synthetic. No real customer or supplier data is required to run the demonstration.
