@@ -1,0 +1,15 @@
+services:
+  api:
+    build: .
+    ports: ["127.0.0.1:8000:8000"]
+    environment:
+      RECALLTRACE_ENV: development
+      QDRANT_URL: http://qdrant:6333
+      RECALLTRACE_VECTOR_BACKEND: qdrant
+    volumes: ["./runtime:/srv/runtime"]
+    depends_on: [qdrant]
+  qdrant:
+    image: qdrant/qdrant:v1.12.6
+    volumes: ["qdrant:/qdrant/storage"]
+volumes:
+  qdrant:
